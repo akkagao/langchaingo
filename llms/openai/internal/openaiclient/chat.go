@@ -340,9 +340,9 @@ type FunctionCall struct {
 func (c *Client) createChat(ctx context.Context, payload *ChatRequest) (*ChatCompletionResponse, error) {
 	if payload.StreamingFunc != nil {
 		payload.Stream = true
-		if payload.StreamOptions == nil {
-			payload.StreamOptions = &StreamOptions{IncludeUsage: true}
-		}
+		// if payload.StreamOptions == nil {
+		// 	payload.StreamOptions = &StreamOptions{IncludeUsage: true}
+		// }
 	}
 	// Build request payload
 
