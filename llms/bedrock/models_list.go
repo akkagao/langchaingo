@@ -48,7 +48,8 @@ const (
 	//
 	// Max tokens: 200k
 	// Languages: English and multiple other languages.
-	ModelAnthropicClaudeV3Sonnet = "anthropic.claude-3-sonnet-20240229-v1:0"
+	ModelAnthropicClaudeV3Sonnet  = "anthropic.claude-3-sonnet-20240229-v1:0"
+	ModelAnthropicClaudeV35Sonnet = "anthropic.claude-3-5-sonnet-20240620-v1:0"
 
 	// Claude 3 Haiku is Anthropic's fastest, most compact model for near-instant responsiveness.
 	// It answers simple queries and requests with speed.
