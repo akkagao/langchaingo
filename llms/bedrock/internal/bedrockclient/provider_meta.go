@@ -1,11 +1,14 @@
 package bedrockclient
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/bedrockruntime"
+	"github.com/aws/aws-sdk-go-v2/service/bedrockruntime/types"
 	"github.com/tmc/langchaingo/llms"
 )
 
@@ -64,6 +67,16 @@ func createMetaCompletion(ctx context.Context,
 		return nil, err
 	}
 
+	if options.StreamingFunc != nil {
+		modelInput := &bedrockruntime.InvokeModelWithResponseStreamInput{
+			ModelId:     aws.String(modelID),
+			Accept:      aws.String("*/*"),
+			ContentType: aws.String("application/json"),
+			Body:        body,
+		}
+		return parseLlamaStreamingCompletionResponse(ctx, client, modelInput, options)
+	}
+
 	modelInput := &bedrockruntime.InvokeModelInput{
 		ModelId:     aws.String(modelID),
 		Accept:      aws.String("*/*"),
@@ -94,5 +107,55 @@ func createMetaCompletion(ctx context.Context,
 				},
 			},
 		},
+	}, nil
+}
+
+type streamingLlamaCompletionResponseChunk struct {
+	Generation           string `json:"generation"`
+	PromptTokenCount     int    `json:"prompt_token_count"`
+	GenerationTokenCount int    `json:"generation_token_count"`
+	StopReason           any    `json:"stop_reason"`
+}
+
+func parseLlamaStreamingCompletionResponse(ctx context.Context, client *bedrockruntime.Client, modelInput *bedrockruntime.InvokeModelWithResponseStreamInput, options llms.CallOptions) (*llms.ContentResponse, error) {
+	output, err := client.InvokeModelWithResponseStream(ctx, modelInput)
+	if err != nil {
+		return nil, err
+	}
+	stream := output.GetStream()
+	if stream == nil {
+		return nil, errors.New("no stream")
+	}
+	defer stream.Close()
+
+	contentchoices := []*llms.ContentChoice{{GenerationInfo: map[string]interface{}{}}}
+	for e := range stream.Events() {
+		if err = stream.Err(); err != nil {
+			return nil, err
+		}
+
+		if v, ok := e.(*types.ResponseStreamMemberChunk); ok {
+			var resp streamingLlamaCompletionResponseChunk
+			err := json.NewDecoder(bytes.NewReader(v.Value.Bytes)).Decode(&resp)
+			if err != nil {
+				return nil, err
+			}
+
+			if resp.StopReason == nil {
+				if err = options.StreamingFunc(ctx, []byte(resp.Generation)); err != nil {
+					return nil, err
+				}
+				contentchoices[0].Content += resp.Generation
+			} else {
+				if stopReason, ok := resp.StopReason.(string); ok {
+					contentchoices[0].StopReason = stopReason
+					contentchoices[0].GenerationInfo["output_tokens"] = resp.Generation
+				}
+			}
+		}
+	}
+
+	return &llms.ContentResponse{
+		Choices: contentchoices,
 	}, nil
 }
