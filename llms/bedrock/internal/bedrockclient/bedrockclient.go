@@ -29,7 +29,12 @@ type Message struct {
 }
 
 func getProvider(modelID string) string {
-	return strings.Split(modelID, ".")[0]
+	providerMap := map[string]struct{}{"ai21": {}, "amazon": {}, "anthropic": {}, "cohere": {}, "meta": {}}
+	provider := strings.Split(modelID, ".")[0]
+	if _, ok := providerMap[provider]; !ok {
+		return strings.Split(modelID, ".")[1]
+	}
+	return provider
 }
 
 // NewClient creates a new Bedrock client.
